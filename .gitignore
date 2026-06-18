@@ -1,0 +1,7 @@
+# kubeconfigs live on disk but are never committed
+/kube/*
+!/kube/README.md
+
+# local-only notes / scratch
+*.local
+/scratch/

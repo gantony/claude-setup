@@ -1,0 +1,109 @@
+# claude-setup
+
+Run Claude Code inside a rootless [Podman](https://podman.io/) container so the
+**container is the structural boundary**: only the directory you launch from
+(under `~/github`) plus this repo's `kube/` dir are mounted, so the rest of your
+home partition is physically unreachable - `rm -rf ~` inside the sandbox hits
+nothing. Per-session CPU/RAM caps come from the same mechanism.
+
+Because the boundary is structural, Claude runs in auto mode
+(`--dangerously-skip-permissions`) by default.
+
+## Layout
+
+| Path | What |
+|------|------|
+| `Containerfile` | Dev image: Go, Node + corepack (pnpm/yarn), Python, make/build-essential, gh, kubectl, gcloud, az, Claude Code |
+| `bin/claude-sandbox` | Launch wrapper - build the image, then run Claude in any `~/github` dir |
+| `claude-home/CLAUDE.md` | Your personal global instructions, mounted at `~/.claude/CLAUDE.md` in the container |
+| `settings/settings.json` | Permission tiers - **only** apply in oversight mode (`CLAUDE_SANDBOX_AUTO=0`) |
+| `kube/` | Gitignored kubeconfigs for Claude; mounted as the container's `~/.kube` (see `kube/README.md`) |
+
+## Prerequisites
+
+- `podman` (rootless). On Ubuntu: `sudo apt-get install podman`.
+- cgroup v2 with user delegation, so `--memory`/`--cpus`/`--pids-limit` are
+  honored for rootless containers (default on modern systemd distros). If
+  Podman warns that limits are ignored, enable delegation:
+  `sudo systemctl edit user@.service` ->
+  `[Service]` / `Delegate=cpu cpuset io memory pids`, then re-login.
+
+## Setup
+
+```
+git clone <this-repo> ~/github/claude-setup
+ln -s ~/github/claude-setup/bin/claude-sandbox ~/.local/bin/claude-sandbox
+claude-sandbox build                              # one-time (rebuild after editing the Containerfile)
+```
+
+`build` bakes in your host UID/GID/username so `--userns=keep-id` maps you 1:1 -
+files Claude creates in mounted repos stay owned by you on the host.
+
+## Usage
+
+```
+cd ~/github/some-project        # any dir under ~/github
+claude-sandbox                  # auto mode, scoped to this dir
+claude-sandbox --resume         # extra args pass through to `claude`
+```
+
+First run: authenticate with `/login` inside Claude. Auth + history persist in
+the `claude-config` volume, so you only do it once. (Alternatively set
+`CLAUDE_CODE_OAUTH_TOKEN` in your environment.)
+
+## Auto mode vs oversight mode
+
+- **Auto (default):** `--dangerously-skip-permissions` - no prompts. The
+  container is the guardrail. `settings/settings.json` is ignored in this mode.
+- **Oversight:** `CLAUDE_SANDBOX_AUTO=0 claude-sandbox` - prompts apply and the
+  permission tiers in `settings/settings.json` take effect. Use this when you
+  hand Claude a sensitive (e.g. staging) kubeconfig and want to watch each call.
+
+## Kubeconfigs
+
+Your host CLI keeps its own `~/.kube/config` (never mounted). Claude gets a
+separate `~/.kube` backed by the gitignored `kube/` dir in this repo. Use it for
+kind clusters (full access) and the occasional monitored staging config - see
+`kube/README.md`.
+
+## Persistent caches
+
+Named volumes keep module downloads across sessions and share them between
+parallel containers (no re-downloading per launch):
+
+`claude-go` (`~/go` + build cache), `claude-cache` (`~/.cache`: go-build, pip,
+yarn), `claude-pnpm` (pnpm store), `claude-npm` (`~/.npm`), `claude-config`
+(`~/.claude`: auth, history). Inspect with `podman volume ls`; reset one with
+`podman volume rm claude-<name>`.
+
+## Parallel sessions
+
+Open another terminal and run `claude-sandbox` in a different worktree - each is
+its own container with its own resource caps. Pairs naturally with `git worktree`.
+
+## Knobs (env vars)
+
+| Var | Default | Effect |
+|-----|---------|--------|
+| `CLAUDE_SANDBOX_AUTO` | `1` | `0` drops `--dangerously-skip-permissions` (oversight mode) |
+| `CLAUDE_SANDBOX_MEMORY` | `8g` | Per-session memory cap |
+| `CLAUDE_SANDBOX_CPUS` | `4` | Per-session CPU cap |
+| `CLAUDE_SANDBOX_PIDS` | `1024` | Per-session process cap |
+| `CLAUDE_SANDBOX_NETWORK` | `host` | Podman network mode (`none`/`bridge`/... to isolate) |
+| `CLAUDE_SANDBOX_ROOT` | `~/github` | Allowed launch root |
+| `CLAUDE_SANDBOX_MOUNT_ALL` | `0` | `1` mounts all of `~/github` instead of just the cwd |
+| `CLAUDE_SANDBOX_IMAGE` | `claude-sandbox:latest` | Image tag |
+
+## Notes
+
+- Host networking is the default so kind clusters / local dev servers are
+  reachable. It shares the host network namespace (no network isolation); the
+  filesystem and resource boundaries are unaffected. Set `CLAUDE_SANDBOX_NETWORK`
+  to isolate when you don't need host access.
+- `claude-home/CLAUDE.md` is a copy of your host `~/.claude/CLAUDE.md`. A couple
+  of sections (claude-guard, settings.local merging) describe your host workflow
+  and don't apply inside the container - trim them in the copy if you like.
+- Image is amd64. On arm64, swap the Go/kubectl download arch in `Containerfile`.
+- Don't enable Claude's built-in bash sandbox on top of this - the container is
+  already the boundary, and its filesystem glob rules are only partially
+  supported on Linux.

@@ -1,0 +1,30 @@
+{
+  "$comment": "Mounted into the container as /etc/claude-code/managed-settings.json. These permission tiers apply when you run WITHOUT --dangerously-skip-permissions (e.g. when using a sensitive kubeconfig from ~/claude-shared). In the default auto mode the wrapper passes --dangerously-skip-permissions, which bypasses these. Do NOT enable the bash sandbox here - the container is already the boundary.",
+  "permissions": {
+    "allow": [
+      "Bash(kubectl get:*)",
+      "Bash(kubectl describe:*)",
+      "Bash(kubectl logs:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh repo view:*)",
+      "Bash(gcloud * list)",
+      "Bash(gcloud * describe)",
+      "Bash(az * list)",
+      "Bash(az * show)"
+    ],
+    "ask": [
+      "Bash(kubectl:*)",
+      "Bash(gcloud:*)",
+      "Bash(az:*)",
+      "Bash(gh:*)"
+    ],
+    "deny": [
+      "Bash(kubectl delete:*)",
+      "Bash(kubectl drain:*)",
+      "Bash(gcloud * delete:*)",
+      "Bash(az * delete:*)",
+      "Bash(gh repo delete:*)"
+    ]
+  }
+}

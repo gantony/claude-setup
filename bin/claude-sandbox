@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# claude-sandbox - run Claude Code inside a rootless Podman container.
+#
+#   claude-sandbox build      build (or rebuild) the image for your user
+#   claude-sandbox [args...]  run Claude Code in the current dir, args passed through
+#
+# The current directory must live under $CLAUDE_SANDBOX_ROOT (default ~/github).
+# Only that dir (or all of ~/github with CLAUDE_SANDBOX_MOUNT_ALL=1) plus the
+# repo's kube/ dir are mounted, so nothing else in your home partition is
+# reachable from the container.
+set -euo pipefail
+
+IMAGE="${CLAUDE_SANDBOX_IMAGE:-claude-sandbox:latest}"
+MEMORY="${CLAUDE_SANDBOX_MEMORY:-8g}"
+CPUS="${CLAUDE_SANDBOX_CPUS:-4}"
+PIDS="${CLAUDE_SANDBOX_PIDS:-1024}"
+GITHUB_ROOT="${CLAUDE_SANDBOX_ROOT:-$HOME/github}"
+# host networking by default so kind clusters and local dev servers on the host
+# loopback are reachable. Set to "none"/"bridge"/etc. for network isolation.
+NETWORK="${CLAUDE_SANDBOX_NETWORK:-host}"
+# auto mode (skip permission prompts). Set CLAUDE_SANDBOX_AUTO=0 for oversight
+# mode - prompts apply and settings/settings.json tiers take effect.
+AUTO="${CLAUDE_SANDBOX_AUTO:-1}"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(dirname "$SCRIPT_DIR")"
+
+# --- build mode ---
+if [ "${1:-}" = "build" ]; then
+  exec podman build \
+    --build-arg HOST_USER="$(id -un)" \
+    --build-arg HOST_UID="$(id -u)" \
+    --build-arg HOST_GID="$(id -g)" \
+    --build-arg HOST_HOME="$HOME" \
+    -t "$IMAGE" \
+    -f "$REPO_DIR/Containerfile" \
+    "$REPO_DIR"
+fi
+
+# --- run mode ---
+WORKDIR="$PWD"
+case "$WORKDIR" in
+  "$GITHUB_ROOT" | "$GITHUB_ROOT"/*) ;;
+  *)
+    echo "claude-sandbox: run from within $GITHUB_ROOT (cwd: $WORKDIR)" >&2
+    exit 1
+    ;;
+esac
+
+mounts=()
+
+# project: just the current worktree by default, or all of ~/github if asked.
+if [ "${CLAUDE_SANDBOX_MOUNT_ALL:-0}" = "1" ]; then
+  mounts+=(-v "$GITHUB_ROOT:$GITHUB_ROOT:rw")
+else
+  mounts+=(-v "$WORKDIR:$WORKDIR:rw")
+fi
+
+# kubeconfigs: the repo's gitignored kube/ dir becomes the container's ~/.kube,
+# kept entirely separate from your host ~/.kube (your normal CLI is untouched).
+# Drop kind/staging kubeconfigs in there; see kube/README.md.
+if [ -d "$REPO_DIR/kube" ]; then
+  mounts+=(-v "$REPO_DIR/kube:$HOME/.kube:rw")
+fi
+
+# your personal global instructions, mounted at the user-level CLAUDE.md path.
+if [ -f "$REPO_DIR/claude-home/CLAUDE.md" ]; then
+  mounts+=(-v "$REPO_DIR/claude-home/CLAUDE.md:$HOME/.claude/CLAUDE.md:ro")
+fi
+
+# version-controlled permission tiers, used only in oversight mode (AUTO=0).
+if [ -f "$REPO_DIR/settings/settings.json" ]; then
+  mounts+=(-v "$REPO_DIR/settings/settings.json:/etc/claude-code/managed-settings.json:ro")
+fi
+
+claude_args=()
+if [ "$AUTO" = "1" ]; then
+  claude_args+=(--dangerously-skip-permissions)
+fi
+
+exec podman run --rm -it \
+  --userns=keep-id \
+  --network="$NETWORK" \
+  --memory="$MEMORY" --cpus="$CPUS" --pids-limit="$PIDS" \
+  --security-opt no-new-privileges \
+  --cap-drop ALL \
+  -w "$WORKDIR" \
+  -e HOME="$HOME" \
+  -e TERM="${TERM:-xterm-256color}" \
+  -v claude-config:"$HOME/.claude" \
+  -v claude-cache:"$HOME/.cache" \
+  -v claude-go:"$HOME/go" \
+  -v claude-pnpm:"$HOME/.local/share/pnpm" \
+  -v claude-npm:"$HOME/.npm" \
+  "${mounts[@]}" \
+  "$IMAGE" \
+  claude "${claude_args[@]}" "$@"
