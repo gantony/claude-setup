@@ -78,9 +78,8 @@ fi
 exec podman run --rm -it \
   --userns=keep-id \
   --network=host \
+  --device /dev/fuse \
   --memory="$MEMORY" --cpus="$CPUS" --pids-limit="$PIDS" \
-  --security-opt no-new-privileges \
-  --cap-drop ALL \
   -w "$WORKDIR" \
   -e HOME="$HOME" \
   -e TERM="${TERM:-xterm-256color}" \

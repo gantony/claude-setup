@@ -22,11 +22,17 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV DISABLE_AUTOUPDATER=1
 
 # --- base packages ---
+# podman + podman-docker give a daemonless `docker` command (a shim over podman),
+# so `docker build`/`docker run` and kind (KIND_EXPERIMENTAL_PROVIDER=podman) work
+# without a Docker daemon. uidmap/fuse-overlayfs/slirp4netns support rootless use.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl wget gnupg git make build-essential \
       python3 python3-pip python3-venv pipx \
       jq ripgrep unzip less openssh-client \
-    && rm -rf /var/lib/apt/lists/*
+      podman podman-docker uidmap fuse-overlayfs slirp4netns \
+    && rm -rf /var/lib/apt/lists/* \
+    && touch /etc/containers/nodocker
+
 
 # --- Go ---
 RUN curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -o /tmp/go.tgz \
@@ -77,7 +83,9 @@ RUN userdel -r ubuntu 2>/dev/null || true; \
     groupdel ubuntu 2>/dev/null || true; \
     groupadd -g "${HOST_GID}" "${HOST_USER}" 2>/dev/null || true; \
     useradd -m -u "${HOST_UID}" -g "${HOST_GID}" -d "${HOST_HOME}" -s /bin/bash "${HOST_USER}" 2>/dev/null || true; \
-    mkdir -p "${HOST_HOME}" && chown "${HOST_UID}:${HOST_GID}" "${HOST_HOME}"
+    mkdir -p "${HOST_HOME}" && chown "${HOST_UID}:${HOST_GID}" "${HOST_HOME}"; \
+    echo "${HOST_USER}:100000:65536" > /etc/subuid; \
+    echo "${HOST_USER}:100000:65536" > /etc/subgid
 
 # Cache locations point at dirs that bin/claude-sandbox mounts as persistent
 # volumes, so module downloads survive across sessions and are shared between
@@ -85,6 +93,8 @@ RUN userdel -r ubuntu 2>/dev/null || true; \
 ENV GOPATH=${HOST_HOME}/go
 ENV GOCACHE=${HOST_HOME}/.cache/go-build
 ENV PATH=${HOST_HOME}/go/bin:${HOST_HOME}/.local/bin:/usr/local/go/bin:${PATH}
+# make `kind` use podman instead of looking for a Docker daemon
+ENV KIND_EXPERIMENTAL_PROVIDER=podman
 
 USER ${HOST_UID}:${HOST_GID}
 WORKDIR ${HOST_HOME}

@@ -13,7 +13,7 @@ Because the boundary is structural, Claude runs in auto mode
 
 | Path | What |
 |------|------|
-| `Containerfile` | Dev image: Go, Node + corepack (pnpm/yarn), Python, make/build-essential, gh, kubectl, gcloud, az, Claude Code |
+| `Containerfile` | Dev image: Go, Node + corepack (pnpm/yarn), Python, make/build-essential, gh, kubectl, gcloud, az, podman (+ `docker` shim), Claude Code |
 | `bin/claude-sandbox` | Launch wrapper - build the image, then run Claude in any `~/github` dir |
 | `claude-home/CLAUDE.md` | Your personal global instructions, mounted at `~/.claude/CLAUDE.md` in the container |
 | `settings/settings.json` | Permission tiers - **only** apply in oversight mode (`CLAUDE_SANDBOX_AUTO=0`) |
@@ -65,6 +65,21 @@ Your host CLI keeps its own `~/.kube/config` (never mounted). Claude gets a
 separate `~/.kube` backed by the gitignored `kube/` dir in this repo. Use it for
 kind clusters (full access) and the occasional monitored staging config - see
 `kube/README.md`.
+
+## Docker / kind
+
+`make` and the daemonless image build (`ko`) work as-is. For anything that calls
+`docker` or spins up `kind`, the image ships **podman** plus the `podman-docker`
+shim, so `docker build`/`docker run` transparently use podman (no daemon), and
+`kind` is pointed at podman via `KIND_EXPERIMENTAL_PROVIDER=podman`.
+
+Caveat: nested rootless containers are finicky. `--userns=keep-id` (which keeps
+file ownership clean) gives the container a single UID mapping, which limits what
+nested podman can map - simple `docker build`/`run` are fine, but full `kind`
+e2e may need tuning or is simplest to run on the host. Test the e2e path before
+relying on it. The `--cap-drop ALL` / `no-new-privileges` hardening was removed
+because it blocks rootless podman's setuid helpers; the filesystem and resource
+boundaries (what's mounted, the CPU/RAM caps) are unaffected.
 
 ## Persistent caches
 
