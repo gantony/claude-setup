@@ -60,12 +60,17 @@ if [ -d "$REPO_DIR/kube" ]; then
   mounts+=(-v "$REPO_DIR/kube:$HOME/.kube:rw")
 fi
 
-# your personal global instructions, mounted at the user-level CLAUDE.md path.
-if [ -f "$REPO_DIR/claude-home/CLAUDE.md" ]; then
-  mounts+=(-v "$REPO_DIR/claude-home/CLAUDE.md:$HOME/.claude/CLAUDE.md:ro")
-fi
+# your real customizations from ~/.claude, mounted read-only: the sandbox uses
+# your CLAUDE.md, custom commands, hooks and plugins but can't modify them, while
+# auth, history and project memory stay isolated in the claude-config volume.
+for item in CLAUDE.md commands hooks plugins; do
+  [ -e "$HOME/.claude/$item" ] && mounts+=(-v "$HOME/.claude/$item:$HOME/.claude/$item:ro")
+done
 
-# version-controlled permission tiers, used only in oversight mode (AUTO=0).
+# sandbox-specific Claude settings (managed = authoritative). Derived from your
+# host settings.json minus the bits that don't belong in the container (the
+# built-in bash sandbox, claude-guard). Permission tiers here apply in oversight
+# mode (AUTO=0).
 if [ -f "$REPO_DIR/settings/settings.json" ]; then
   mounts+=(-v "$REPO_DIR/settings/settings.json:/etc/claude-code/managed-settings.json:ro")
 fi

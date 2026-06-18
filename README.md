@@ -15,8 +15,7 @@ Because the boundary is structural, Claude runs in auto mode
 |------|------|
 | `Containerfile` | Dev image: Go, Node + corepack (pnpm/yarn), Python, make/build-essential, gh, kubectl, gcloud, az, podman (+ `docker` shim), Claude Code |
 | `bin/claude-sandbox` | Launch wrapper - build the image, then run Claude in any `~/github` dir |
-| `claude-home/CLAUDE.md` | Your personal global instructions, mounted at `~/.claude/CLAUDE.md` in the container |
-| `settings/settings.json` | Permission tiers - **only** apply in oversight mode (`CLAUDE_SANDBOX_AUTO=0`) |
+| `settings/settings.json` | Curated container Claude settings (managed), derived from your host `settings.json` |
 | `kube/` | Gitignored kubeconfigs for Claude; mounted as the container's `~/.kube` (see `kube/README.md`) |
 
 ## Prerequisites
@@ -50,6 +49,24 @@ claude-sandbox --resume         # extra args pass through to `claude`
 First run: authenticate with `/login` inside Claude. Auth + history persist in
 the `claude-config` volume, so you only do it once. (Alternatively set
 `CLAUDE_CODE_OAUTH_TOKEN` in your environment.)
+
+## Your customizations (`~/.claude`)
+
+Your real `~/.claude/{CLAUDE.md,commands,hooks,plugins}` are mounted **read-only**,
+so the sandbox uses your global instructions, custom commands (review-pr, open-pr,
+respond-to-review, ...), hooks and installed plugins - but can't modify them.
+Everything writable and sensitive (auth, `history.jsonl`, `projects/` transcripts
+and memory) stays isolated in the `claude-config` volume, so the sandbox keeps its
+own state and you log in once inside it.
+
+Settings are **not** mounted from the host - the container uses the curated
+`settings/settings.json` (managed settings) derived from yours, minus the host-only
+bits that would break or be redundant inside the container (the built-in bash
+sandbox, the claude-guard `PermissionRequest` hook). Edit it to taste.
+
+If a plugin needs to write its cache at runtime and the read-only mount trips it
+up, flip just `plugins` to `rw` in `bin/claude-sandbox` (recoverable - your
+`~/.claude` is git-versioned).
 
 ## Auto mode vs oversight mode
 
@@ -113,9 +130,6 @@ its own container with its own resource caps. Pairs naturally with `git worktree
 - Uses host networking: Claude has full network access and kind clusters /
   local dev servers on the host are reachable. Only the network namespace is
   shared - the filesystem and resource boundaries are unaffected.
-- `claude-home/CLAUDE.md` is a copy of your host `~/.claude/CLAUDE.md`. A couple
-  of sections (claude-guard, settings.local merging) describe your host workflow
-  and don't apply inside the container - trim them in the copy if you like.
 - Image is amd64. On arm64, swap the Go/kubectl download arch in `Containerfile`.
 - Don't enable Claude's built-in bash sandbox on top of this - the container is
   already the boundary, and its filesystem glob rules are only partially

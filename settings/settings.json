@@ -1,7 +1,20 @@
 {
-  "$comment": "Mounted into the container as /etc/claude-code/managed-settings.json. These permission tiers apply when you run WITHOUT --dangerously-skip-permissions (e.g. when using a sensitive kubeconfig from ~/claude-shared). In the default auto mode the wrapper passes --dangerously-skip-permissions, which bypasses these. Do NOT enable the bash sandbox here - the container is already the boundary.",
   "permissions": {
     "allow": [
+      "Read",
+      "Edit",
+      "WebSearch",
+      "WebFetch",
+      "Write(/tmp/**)",
+      "Write(/home/antony/github/**)",
+      "Read(/tmp/**)",
+      "Read(/home/antony/.cache/golangci-lint/**)",
+      "mcp__claude_ai_Atlassian__getVisibleJiraProjects",
+      "mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql",
+      "mcp__claude_ai_Atlassian__getJiraIssue",
+      "mcp__claude_ai_Atlassian__search",
+      "mcp__claude_ai_Atlassian__atlassianUserInfo",
+      "mcp__claude_ai_Atlassian__getAccessibleAtlassianResources",
       "Bash(kubectl get:*)",
       "Bash(kubectl describe:*)",
       "Bash(kubectl logs:*)",
@@ -26,5 +39,27 @@
       "Bash(az * delete:*)",
       "Bash(gh repo delete:*)"
     ]
-  }
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "~/.claude/hooks/pre-commit-go-check.sh" }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "~/.claude/hooks/post-tool-insights.sh", "timeout": 5 }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "clangd-lsp@claude-plugins-official": true
+  },
+  "effortLevel": "xhigh"
 }
