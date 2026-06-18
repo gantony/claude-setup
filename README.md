@@ -89,17 +89,15 @@ its own container with its own resource caps. Pairs naturally with `git worktree
 | `CLAUDE_SANDBOX_MEMORY` | `8g` | Per-session memory cap |
 | `CLAUDE_SANDBOX_CPUS` | `4` | Per-session CPU cap |
 | `CLAUDE_SANDBOX_PIDS` | `1024` | Per-session process cap |
-| `CLAUDE_SANDBOX_NETWORK` | `host` | Podman network mode (`none`/`bridge`/... to isolate) |
 | `CLAUDE_SANDBOX_ROOT` | `~/github` | Allowed launch root |
 | `CLAUDE_SANDBOX_MOUNT_ALL` | `0` | `1` mounts all of `~/github` instead of just the cwd |
 | `CLAUDE_SANDBOX_IMAGE` | `claude-sandbox:latest` | Image tag |
 
 ## Notes
 
-- Host networking is the default so kind clusters / local dev servers are
-  reachable. It shares the host network namespace (no network isolation); the
-  filesystem and resource boundaries are unaffected. Set `CLAUDE_SANDBOX_NETWORK`
-  to isolate when you don't need host access.
+- Uses host networking: Claude has full network access and kind clusters /
+  local dev servers on the host are reachable. Only the network namespace is
+  shared - the filesystem and resource boundaries are unaffected.
 - `claude-home/CLAUDE.md` is a copy of your host `~/.claude/CLAUDE.md`. A couple
   of sections (claude-guard, settings.local merging) describe your host workflow
   and don't apply inside the container - trim them in the copy if you like.
