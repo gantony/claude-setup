@@ -7,10 +7,10 @@ FROM ubuntu:24.04
 # These are passed by bin/claude-sandbox so the in-container user matches your
 # host user 1:1. With `--userns=keep-id` that means files Claude creates in the
 # mounted repo stay owned by *you* on the host (no chown dance).
-ARG HOST_USER=antony
+ARG HOST_USER=dev
 ARG HOST_UID=1000
 ARG HOST_GID=1000
-ARG HOST_HOME=/home/antony
+ARG HOST_HOME=/home/dev
 
 # git identity for in-sandbox commits - the wrapper fills these from your host
 # `git config --global user.name/user.email` at build time (empty = not set).
