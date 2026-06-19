@@ -65,10 +65,17 @@ fi
 # ways and you don't log in twice.
 mounts+=(-v "$HOME/.claude:$HOME/.claude:rw")
 
-# ...except settings.json, overridden with the curated read-only version: the
-# host's enables the built-in bash sandbox and the claude-guard hook, both of
-# which break or are redundant in the container. This is the one piece the
-# sandbox can't modify; its permission tiers apply in oversight mode (AUTO=0).
+# protect the irreplaceable bits from a stray write inside the sandbox: your
+# customizations and the ~/.claude git repo are mounted read-only, so they
+# survive even if your dotfiles worktree is dirty (sessions, memory and runtime
+# state stay writable - that's the shared store).
+for ro in CLAUDE.md commands hooks .git; do
+  [ -e "$HOME/.claude/$ro" ] && mounts+=(-v "$HOME/.claude/$ro:$HOME/.claude/$ro:ro")
+done
+
+# settings.json is also overridden with the curated read-only version: the host's
+# enables the built-in bash sandbox and the claude-guard hook, both of which break
+# or are redundant in the container. Its tiers apply in oversight mode (AUTO=0).
 if [ -f "$REPO_DIR/settings/settings.json" ]; then
   mounts+=(-v "$REPO_DIR/settings/settings.json:$HOME/.claude/settings.json:ro")
 fi

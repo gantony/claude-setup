@@ -64,11 +64,15 @@ redundant inside the container. Your other settings tiers still apply
 (`settings.local.json`, and remote settings - whose panther hooks are guarded
 with `[ -x ]` and no-op when the binary isn't present).
 
-Trade-off: the sandbox can now read your credentials and write/delete within
-`~/.claude` (so `rm -rf ~/.claude` becomes possible again - but it's git-versioned
-and recoverable, and the rest of your home is still unreachable). Settings/model
-changes made inside the sandbox won't persist (settings.json is read-only there) -
-edit `settings/settings.json` in this repo instead.
+Scope of risk: your **host** Claude already has full read-write to `~/.claude`, so
+the sandbox isn't a new risk class - it just gets the same access, to share the
+store. Its real job (protecting the rest of your home, capping resources) is
+unchanged. As extra insurance, your irreplaceable customizations and the
+`~/.claude` git repo - `CLAUDE.md`, `commands/`, `hooks/`, `.git/` - are mounted
+**read-only**, so a stray write inside the sandbox can't touch them even if your
+dotfiles worktree is dirty. Sessions, memory and runtime state stay writable
+(that's the shared store). Settings/model changes made inside the sandbox won't
+persist (settings.json is read-only there) - edit `settings/settings.json` here.
 
 ## Auto mode vs oversight mode
 
