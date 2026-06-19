@@ -85,3 +85,9 @@ echo 'github_pat_xxx' > ~/tools/claude-setup/secrets/gh-token
 
 Relaunch `claude-sandbox`; `claude-sandbox doctor` and `gh auth status` inside
 confirm it's active.
+
+Works with SSH remotes too: a PAT is HTTPS auth and can't be used over SSH, so the
+image rewrites github SSH remotes (`git@github.com:…`) to HTTPS and uses the token
+(`git config --system url.insteadOf` + gh as the credential helper). You don't need
+an SSH key in the sandbox - and shouldn't add one, since it's a broad credential
+the agent could read. Your host's SSH remotes and keys are untouched.

@@ -82,6 +82,15 @@ RUN curl -fsSL https://aka.ms/InstallAzureCLIDeb | bash \
 # --- Claude Code ---
 RUN npm install -g @anthropic-ai/claude-code
 
+# --- git: use HTTPS + the gh token for github.com inside the sandbox ---
+# A fine-grained PAT is HTTPS auth - it can't be used over SSH, and mounting an SSH
+# key would hand the agent a broad credential, defeating the scoped token. So
+# transparently rewrite SSH github remotes (git@github.com:...) to HTTPS and let gh
+# supply the token at runtime. The host's own remotes and git config are untouched.
+RUN git config --system url."https://github.com/".insteadOf "git@github.com:" \
+    && git config --system --add url."https://github.com/".insteadOf "ssh://git@github.com/" \
+    && git config --system credential."https://github.com".helper "!gh auth git-credential"
+
 # --- match the host user so keep-id maps cleanly ---
 # Ubuntu 24.04 ships a default uid/gid 1000 ("ubuntu"); drop it before creating
 # ours so the requested HOST_UID/HOST_GID are free.
