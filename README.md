@@ -118,13 +118,15 @@ kind clusters (full access) and the occasional monitored staging config - see
 
 ## GitHub CLI
 
-Your `~/.config/gh` is mounted **read-only**, so `gh` works inside the sandbox
-with your existing host login - no re-login, and the sandbox can't change your gh
-auth. Note this grants the sandbox your **full** gh token (act-as-you on every
-repo you can access). Branch protection on `main` stops direct pushes there, but
-not pushing to other branches, opening/merging PRs, or reading private repos. For
-least privilege, drop the mount and pass a fine-grained PAT via `GH_TOKEN` scoped
-to just what Claude needs.
+`gh` auth comes from one of two places. If `secrets/gh-token` exists, the wrapper
+passes it as `GH_TOKEN` (the **scoped fine-grained PAT** path - preferred). Else
+it mounts your full host `~/.config/gh` **read-only**, which works with your
+existing login but grants the sandbox your **full** gh token (act-as-you on every
+repo). Branch protection on `main` stops direct pushes/merges there, but not
+pushing to other branches, deleting releases/runs, or reading private repos. To
+narrow it, see [`docs/github-pat.md`](docs/github-pat.md) - and note several
+limits you might want (no-merge, no-force-push, no-delete) aren't token
+permissions at all; they're branch rulesets or simply unenforceable server-side.
 
 ## Docker / kind
 

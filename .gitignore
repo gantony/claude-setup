@@ -2,6 +2,10 @@
 /kube/*
 !/kube/README.md
 
+# secrets (e.g. the gh PAT) live on disk but are never committed
+/secrets/*
+!/secrets/README.md
+
 # local-only notes / scratch
 *.local
 /scratch/

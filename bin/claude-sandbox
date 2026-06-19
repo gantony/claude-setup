@@ -64,11 +64,14 @@ if [ -d "$REPO_DIR/kube" ]; then
   mounts+=(-v "$REPO_DIR/kube:$HOME/.kube:rw")
 fi
 
-# share your gh CLI auth read-only so `gh` works with your existing host login
-# (no re-login; the sandbox can't change your gh auth). This grants your FULL gh
-# token - for least privilege, drop this and pass a scoped fine-grained PAT via
-# GH_TOKEN instead.
-if [ -d "$HOME/.config/gh" ]; then
+# gh auth. Preferred (least privilege): a scoped fine-grained PAT in the
+# gitignored secrets/gh-token file - passed as GH_TOKEN, which gh uses over any
+# stored login. See docs/github-pat.md for the permission mapping. Falls back to
+# mounting your full host gh login read-only if no token file is present.
+GH_TOKEN_FILE="$REPO_DIR/secrets/gh-token"
+if [ -f "$GH_TOKEN_FILE" ]; then
+  mounts+=(-e "GH_TOKEN=$(cat "$GH_TOKEN_FILE")")
+elif [ -d "$HOME/.config/gh" ]; then
   mounts+=(-v "$HOME/.config/gh:$HOME/.config/gh:ro")
 fi
 
