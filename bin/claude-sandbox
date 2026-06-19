@@ -65,11 +65,13 @@ fi
 # ways and you don't log in twice.
 mounts+=(-v "$HOME/.claude:$HOME/.claude:rw")
 
-# mount your customizations read-only - they're inputs the container has no reason
-# to write, so this guards against an accidental clobber. NOT a defense against a
-# rogue agent: with full network and readable files it can still copy content out.
-# This sandbox is an accident + resource boundary, not an exfiltration one.
-for ro in CLAUDE.md commands hooks; do
+# mount your config inputs and the ~/.claude git repo read-only: the container has
+# no reason to write these, so it can't clobber them or commit/push changes to your
+# dotfiles repo - the host stays the control point for versioned config (you pull
+# there to apply updates). Guards against accidents and casual tampering, NOT a
+# determined rogue (which could copy files out and push from a writable spot). This
+# sandbox is an accident + resource boundary, not an exfiltration one.
+for ro in CLAUDE.md commands hooks .git; do
   [ -e "$HOME/.claude/$ro" ] && mounts+=(-v "$HOME/.claude/$ro:$HOME/.claude/$ro:ro")
 done
 
