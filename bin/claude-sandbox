@@ -19,7 +19,9 @@ GITHUB_ROOT="${CLAUDE_SANDBOX_ROOT:-$HOME/github}"
 # mode - prompts apply and settings/settings.json tiers take effect.
 AUTO="${CLAUDE_SANDBOX_AUTO:-1}"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# resolve symlinks so this works when invoked via a symlink in PATH
+# (e.g. ~/.local/bin/claude-sandbox -> ~/tools/claude-setup/bin/claude-sandbox).
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
 
 # --- build mode ---
