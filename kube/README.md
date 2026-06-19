@@ -8,7 +8,7 @@ gitignored (except this README) - the files never get committed.
 - Claude's kubectl uses these configs; your **host** CLI keeps using your own
   `~/.kube/config` (never mounted into the container). The two are fully separate.
 - You can use Claude's config from the host any time:
-  `KUBECONFIG=~/github/claude-setup/kube/config kubectl get pods`
+  `KUBECONFIG=~/tools/claude-setup/kube/config kubectl get pods`
 
 ## kind clusters (full access)
 
@@ -16,10 +16,12 @@ kind's API server is on the host loopback, and the sandbox uses host networking
 by default, so it's reachable. Export a kind cluster's config here:
 
 ```
-kind export kubeconfig --name <cluster> --kubeconfig ~/github/claude-setup/kube/config
+kind export kubeconfig --name <cluster> --kubeconfig ~/tools/claude-setup/kube/config
 ```
 
-Claude then has full access to that kind cluster.
+Claude then has full access to that kind cluster. For the matrix e2e cluster
+that's `--name matrix-e2e` (see the README "Cluster testing" section for the full
+host-provision -> sandbox-test workflow).
 
 ## Staging (monitored, temporary)
 

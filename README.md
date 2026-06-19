@@ -127,6 +127,27 @@ relying on it. The `--cap-drop ALL` / `no-new-privileges` hardening was removed
 because it blocks rootless podman's setuid helpers; the filesystem and resource
 boundaries (what's mounted, the CPU/RAM caps) are unaffected.
 
+## Cluster testing
+
+The sandbox can't create kind clusters or `kind load` images - that needs
+host container-runtime access we deliberately withhold. So the current approach
+(call it option 2) provisions the cluster on the **host** and lets the sandbox
+deploy/test against it over the mounted kubeconfig + host networking:
+
+1. On the host, bring up the cluster and load images (matrix e2e example):
+   `make -C ~/github/tigera/matrix/e2e setup`
+2. Export its kubeconfig into this repo's `kube/` so the sandbox picks it up:
+   `kind get kubeconfig --name matrix-e2e > ~/tools/claude-setup/kube/config`
+3. In the sandbox, run tests against it - `kubectl`/`helm` reach the API on
+   `127.0.0.1` via host networking: `make -C e2e test`
+
+Limitation: the sandbox tests whatever images the host loaded. To deploy images
+the sandbox *itself* builds (e.g. to test Claude's own code changes end to end),
+you need a local-registry or tarball image path and a host helper for cluster
+lifecycle - that's the deferred work in
+[`docs/option-1-host-make-helper.md`](docs/option-1-host-make-helper.md). For
+now, rebuild + reload images on the host when the code under test changes.
+
 ## Persistent caches
 
 Named volumes keep module downloads across sessions and share them between
