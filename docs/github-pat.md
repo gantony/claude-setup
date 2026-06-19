@@ -40,8 +40,15 @@ items are **not** token-expressible:
   protection already does this for `main`.
 - **"Limit force-push"** - not a token permission at all. Use the branch ruleset
   **Block force pushes** on the branches you want protected.
-- **"Create releases but not delete them"** - same permission (Contents: write),
-  and there's no ruleset for release deletion. No server-side guardrail exists.
+- **"Push code but block (or read-only) releases"** - impossible. `git push` and
+  all release writes (`POST`/`PATCH`/`DELETE /releases`) are the *same* permission,
+  Contents: write (confirmed in the GitHub docs - there is no standalone Releases
+  permission and no read-only-releases setting). A token that can push can always
+  create/edit/delete releases. A `gh` shim that refuses `gh release` is bypassable
+  (`gh api`, curl) - theater. Tag rulesets only leakily block release *creation via
+  a new tag*, not edits/deletes. The only real block is a TLS-terminating proxy
+  filtering `api.github.com` `/releases` routes (heavy: MITM + CA cert, sees all
+  traffic incl the token). Otherwise: accident model - releases are a host activity.
 - **"Re-run CI but not delete a workflow run"** - same permission
   (Actions: write), no ruleset. View-only (Actions: Read) is the only separable
   point.
