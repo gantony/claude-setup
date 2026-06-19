@@ -69,6 +69,14 @@ fi
 # ways and you don't log in twice.
 mounts+=(-v "$HOME/.claude:$HOME/.claude:rw")
 
+# also share the sibling ~/.claude.json (projects index, user/local MCP servers,
+# trust state). Caveat: if Claude writes it via atomic rename, a single-file bind
+# mount can't be renamed over - if config stops persisting, drop this and accept
+# per-session MCP/trust reset.
+if [ -f "$HOME/.claude.json" ]; then
+  mounts+=(-v "$HOME/.claude.json:$HOME/.claude.json:rw")
+fi
+
 # mount your config inputs and the ~/.claude git repo read-only: the container has
 # no reason to write these, so it can't clobber them or commit/push changes to your
 # dotfiles repo - the host stays the control point for versioned config (you pull
@@ -123,6 +131,7 @@ if [ -d "$p" ]; then
   if touch "$p/.cs-doctor" 2>/dev/null; then rm -f "$p/.cs-doctor"; echo "PASS projects writable (shared session store)"
   else echo "WARN projects not writable (resume sharing broken)"; fi
 fi
+if [ -f "$HOME/.claude.json" ]; then echo "PASS .claude.json present (MCP/trust/projects index shared)"; else echo "WARN .claude.json missing (MCP servers + trust reset each run)"; fi
 echo
 echo "-- toolchain --"
 for c in go node pnpm yarn python3 make gh kubectl helm gcloud az podman docker claude; do

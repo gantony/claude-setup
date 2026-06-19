@@ -69,7 +69,11 @@ Your real `~/.claude` is mounted **read-write**, so the sandbox shares one store
 with the host: sessions, `history.jsonl`, `projects/` (transcripts + memory),
 auth, custom commands (review-pr, open-pr, ...), hooks and plugins are all the
 same. So you can resume a host session inside the sandbox and vice versa, memory
-is shared, and you don't log in twice.
+is shared, and you don't log in twice. The sibling `~/.claude.json` (projects
+index, user-scoped MCP servers, trust state) is mounted too - if Claude ever
+stops persisting config inside the sandbox, that single-file mount is the suspect
+(atomic-rename can't write over a bind-mounted file); drop it and you just lose
+MCP/trust sharing, nothing else.
 
 The one exception is `settings.json`: the container mounts the curated
 `settings/settings.json` **read-only** over it, because your host settings enable
