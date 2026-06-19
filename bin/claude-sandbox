@@ -152,7 +152,7 @@ for c in go node pnpm yarn python3 make gh kubectl helm gcloud az podman docker 
 done
 echo
 echo "-- github cli --"
-if [ -f "$HOME/.config/gh/hosts.yml" ]; then echo "PASS gh config present (uses your host login)"; else echo "WARN gh not authenticated (mount ~/.config/gh or gh auth login)"; fi
+if [ -n "${GH_TOKEN:-}" ]; then echo "PASS gh via GH_TOKEN (scoped PAT)"; elif [ -f "$HOME/.config/gh/hosts.yml" ]; then echo "PASS gh config present (host login)"; else echo "WARN gh not authenticated (add secrets/gh-token, mount ~/.config/gh, or gh auth login)"; fi
 echo
 echo "-- container runtime (docker/kind) --"
 if podman info >/dev/null 2>&1; then echo "PASS nested podman ok"; else echo "WARN nested podman failed (docker/kind may not work)"; fi
