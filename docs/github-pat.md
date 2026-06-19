@@ -68,6 +68,15 @@ filtering proxy (heavy - the GitHub equivalent of the docker-socket-proxy we
 rejected). Source:
 https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens
 
+## Working on workflow files
+
+With Workflows omitted, Claude can still **edit and commit** changes to
+`.github/workflows/*` in the sandbox (editing files and `git commit` are local -
+no token needed); only the **push** is rejected. Because `~/github` is a shared
+mount, that commit is already in your repo on disk, so you just `git push` from a
+host terminal to land it. Rare operation, and it routes workflow changes through
+the host on purpose.
+
 ## Use it
 
 ```
