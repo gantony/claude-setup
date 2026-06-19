@@ -13,7 +13,7 @@ Because the boundary is structural, Claude runs in auto mode
 
 | Path | What |
 |------|------|
-| `Containerfile` | Dev image: Go, Node + corepack (pnpm/yarn), Python, make/build-essential, gh, kubectl, gcloud, az, podman (+ `docker` shim), Claude Code |
+| `Containerfile` | Dev image: Go, Node + corepack (pnpm/yarn), Python, make/build-essential, gh, kubectl, helm, gcloud, az, podman (+ `docker` shim), Claude Code |
 | `bin/claude-sandbox` | Launch wrapper - build the image, then run Claude in any `~/github` dir |
 | `settings/settings.json` | Curated container settings, mounted read-only over `~/.claude/settings.json` |
 | `kube/` | Gitignored kubeconfigs for Claude; mounted as the container's `~/.kube` (see `kube/README.md`) |

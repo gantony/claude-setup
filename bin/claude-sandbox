@@ -125,7 +125,7 @@ if [ -d "$p" ]; then
 fi
 echo
 echo "-- toolchain --"
-for c in go node pnpm yarn python3 make gh kubectl gcloud az podman docker claude; do
+for c in go node pnpm yarn python3 make gh kubectl helm gcloud az podman docker claude; do
   if command -v "$c" >/dev/null 2>&1; then printf 'PASS %-8s %s\n' "$c" "$(command -v "$c")"
   else printf 'MISS %-8s\n' "$c"; fi
 done

@@ -61,6 +61,12 @@ RUN curl -fsSL "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release
       -o /usr/local/bin/kubectl \
     && chmod +x /usr/local/bin/kubectl
 
+# --- Helm ---
+RUN curl -fsSL "https://get.helm.sh/helm-v3.16.3-linux-amd64.tar.gz" -o /tmp/helm.tgz \
+    && tar -xzf /tmp/helm.tgz -C /tmp linux-amd64/helm \
+    && mv /tmp/linux-amd64/helm /usr/local/bin/helm \
+    && rm -rf /tmp/helm.tgz /tmp/linux-amd64
+
 # --- cloud CLIs (comment this whole block out if you don't need them) ---
 # gcloud
 RUN echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" \
