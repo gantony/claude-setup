@@ -101,13 +101,26 @@ determined copy-out). Defending against a malicious agent is a different posture
 (network egress allowlist, no mounted credentials) you've intentionally traded
 away for convenience.
 
-## Auto mode vs oversight mode
+## Permissions, auto mode, and managed org policy
 
-- **Auto (default):** `--dangerously-skip-permissions` - no prompts. The
-  container is the guardrail. `settings/settings.json` is ignored in this mode.
-- **Oversight:** `CLAUDE_SANDBOX_AUTO=0 claude-sandbox` - prompts apply and the
-  permission tiers in `settings/settings.json` take effect. Use this when you
-  hand Claude a sensitive (e.g. staging) kubeconfig and want to watch each call.
+By default the wrapper passes `--dangerously-skip-permissions` (set
+`CLAUDE_SANDBOX_AUTO=0` to drop it). **But if your org delivers managed Claude
+settings that set `disableBypassPermissionsMode`, that flag is a no-op** - you're
+always in the org's prompting mode regardless, and bypass simply isn't available
+(by design - don't try to strip it; take exceptions up with whoever owns the org
+policy).
+
+In that case the org policy governs: its `defaultMode` (e.g. `acceptEdits`, so
+file edits auto-accept), its `ask` list (Tigera's prompts for destructive things -
+`gh release delete`, `gh api -X DELETE`, force-push to protected branches,
+`kubectl delete namespace/node`, `drain`, `eksctl delete`), and its `deny` list
+(protecting security tooling). Those are sharper than anything this repo could set.
+
+So `settings/settings.json` here deliberately carries **only an `allow` list** for
+the dev tool families (`kubectl`, `gh`, `gcloud`, `az`) - that stops benign
+commands prompting on top of the org policy. `ask` beats `allow`, so the org's
+destructive-action prompts still fire over our allow. (Outside a managed org,
+where bypass works, you may want to re-add an `ask`/`deny` tier here.)
 
 ## Kubeconfigs
 

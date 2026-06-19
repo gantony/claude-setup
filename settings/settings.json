@@ -15,29 +15,10 @@
       "mcp__claude_ai_Atlassian__search",
       "mcp__claude_ai_Atlassian__atlassianUserInfo",
       "mcp__claude_ai_Atlassian__getAccessibleAtlassianResources",
-      "Bash(kubectl get:*)",
-      "Bash(kubectl describe:*)",
-      "Bash(kubectl logs:*)",
-      "Bash(gh pr view:*)",
-      "Bash(gh pr list:*)",
-      "Bash(gh repo view:*)",
-      "Bash(gcloud * list)",
-      "Bash(gcloud * describe)",
-      "Bash(az * list)",
-      "Bash(az * show)"
-    ],
-    "ask": [
       "Bash(kubectl:*)",
+      "Bash(gh:*)",
       "Bash(gcloud:*)",
-      "Bash(az:*)",
-      "Bash(gh:*)"
-    ],
-    "deny": [
-      "Bash(kubectl delete:*)",
-      "Bash(kubectl drain:*)",
-      "Bash(gcloud * delete:*)",
-      "Bash(az * delete:*)",
-      "Bash(gh repo delete:*)"
+      "Bash(az:*)"
     ]
   },
   "hooks": {
