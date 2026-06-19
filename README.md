@@ -1,218 +1,79 @@
 # claude-setup
 
-Run Claude Code inside a rootless [Podman](https://podman.io/) container so the
-**container is the structural boundary**: all of `~/github` (so a session can span
-multiple repos) plus this repo's `kube/` dir are mounted, so the rest of your home
-partition is physically unreachable - `rm -rf ~` inside the sandbox hits nothing.
-Per-session CPU/RAM caps come from the same mechanism.
+Run Claude Code in a rootless [Podman](https://podman.io/) container, so the
+**container is the boundary**: only `~/github` (plus this repo's `kube/`) is
+mounted, the rest of your home is physically unreachable (`rm -rf ~` inside hits
+nothing), and each session gets its own CPU/RAM caps. Your `~/.claude` is shared
+in, so sessions, memory, MCP, and auth carry over from the host.
 
-Because the boundary is structural, Claude runs in auto mode
-(`--dangerously-skip-permissions`) by default.
-
-## Layout
-
-| Path | What |
-|------|------|
-| `Containerfile` | Dev image: Go, Node + corepack (pnpm/yarn), Python, make/build-essential, gh, kubectl, helm, gcloud, az, podman (+ `docker` shim), Claude Code |
-| `bin/claude-sandbox` | Launch wrapper - build the image, then run Claude in any `~/github` dir |
-| `settings/settings.json` | Curated container settings, mounted read-only over `~/.claude/settings.json` |
-| `kube/` | Gitignored kubeconfigs for Claude; mounted as the container's `~/.kube` (see `kube/README.md`) |
+It's an **accident + resource boundary - not protection against a malicious
+agent** (it has full network, and your credentials are reachable). Where your org
+ships a managed Claude policy, that governs permissions. Details under [Docs](#docs).
 
 ## Prerequisites
 
-- `podman` (rootless). On Ubuntu: `sudo apt-get install podman`.
-- cgroup v2 with user delegation, so `--memory`/`--cpus`/`--pids-limit` are
-  honored for rootless containers (default on modern systemd distros). If
-  Podman warns that limits are ignored, enable delegation:
-  `sudo systemctl edit user@.service` ->
-  `[Service]` / `Delegate=cpu cpuset io memory pids`, then re-login.
+- `podman` (rootless) - `sudo apt-get install podman`.
+- cgroup v2 with user delegation (for the resource caps). If Podman warns the
+  limits are ignored: `sudo systemctl edit user@.service`, add
+  `[Service]` then `Delegate=cpu cpuset io memory pids`, and re-login.
 
 ## Setup
 
 ```
-git clone <this-repo> ~/tools/claude-setup        # keep it OUT of ~/github (the mounted tree)
+git clone <this-repo> ~/tools/claude-setup     # keep it OUT of ~/github (the mounted tree)
 ln -s ~/tools/claude-setup/bin/claude-sandbox ~/.local/bin/claude-sandbox
-claude-sandbox build                              # one-time (rebuild after editing the Containerfile)
+claude-sandbox build                           # one-time; rebuild after editing the Containerfile
 ```
 
-`build` bakes in your host UID/GID/username so `--userns=keep-id` maps you 1:1 -
-files Claude creates in mounted repos stay owned by you on the host.
+`build` bakes in your host UID/GID/username (so `--userns=keep-id` maps you 1:1
+and files stay yours) and your `git config --global` identity.
 
 ## Usage
 
 ```
-cd ~/github/some-project        # any dir under ~/github
-claude-sandbox                  # auto mode; starts here, all of ~/github mounted
-claude-sandbox --resume         # extra args pass through to `claude`
+cd ~/github/some-project       # any dir under ~/github
+claude-sandbox                 # launch - all of ~/github mounted, session starts here
+claude-sandbox --resume        # extra args pass through to `claude`
+claude-sandbox doctor          # diagnostics: mounts, keep-id, toolchain, caps
+claude-sandbox build           # (re)build the image
 ```
 
-Auth is shared with your host `~/.claude`, so you're already logged in - no
-separate `/login` needed.
+Auth, sessions, and MCP come from your shared `~/.claude` - no separate login. For
+parallel work, run `claude-sandbox` in another terminal (one container each; pairs
+with `git worktree`).
 
-## Doctor
+## What's in the image
 
-`claude-sandbox doctor` runs the same container setup (mounts, caps, userns) but
-executes a diagnostic instead of Claude, then exits. It reports:
-
-- identity / keep-id (new files in the repo owned by you, not a stray uid)
-- the `~/.claude` mounts: `settings.json` read-only with no bash-sandbox block,
-  `CLAUDE.md`/`commands`/`hooks`/`.git` read-only, `projects/` writable
-- the toolchain (go, node, pnpm, ..., podman, docker shim, claude)
-- nested podman (the docker/kind path)
-- the resolved cgroup memory/cpu/pids caps
-
-Run it from any dir under `~/github` after a build or a config change.
-
-## Your `~/.claude` (shared with the host)
-
-Your real `~/.claude` is mounted **read-write**, so the sandbox shares one store
-with the host: sessions, `history.jsonl`, `projects/` (transcripts + memory),
-auth, custom commands (review-pr, open-pr, ...), hooks and plugins are all the
-same. So you can resume a host session inside the sandbox and vice versa, memory
-is shared, and you don't log in twice. The sibling `~/.claude.json` (projects
-index, user-scoped MCP servers, trust state) is mounted too - if Claude ever
-stops persisting config inside the sandbox, that single-file mount is the suspect
-(atomic-rename can't write over a bind-mounted file); drop it and you just lose
-MCP/trust sharing, nothing else.
-
-The one exception is `settings.json`: the container mounts the curated
-`settings/settings.json` **read-only** over it, because your host settings enable
-the built-in bash sandbox and the claude-guard hook - both of which break or are
-redundant inside the container. Your other settings tiers still apply
-(`settings.local.json`, and remote settings - whose panther hooks are guarded
-with `[ -x ]` and no-op when the binary isn't present).
-
-Scope of risk: your **host** Claude already has full read-write to `~/.claude`, so
-the sandbox isn't a new risk class - it just gets the same access, to share the
-store. Its real job (protecting the rest of your home, capping resources) is
-unchanged. Your config inputs (`CLAUDE.md`, `commands/`, `hooks/`) and the
-`~/.claude` `.git` repo are mounted **read-only**: the container can't clobber your
-config or commit/push changes into your dotfiles repo, so the host stays the
-control point for versioned config (pull there to apply updates). Sessions, memory
-and runtime state stay writable (that's the shared store). Settings/model changes
-made inside the sandbox won't persist (settings.json is read-only there) - edit
-`settings/settings.json` here.
-
-This is an **accident + resource boundary, not an anti-exfiltration one.** A
-container in auto mode with full network and readable credentials could, if it
-went truly rogue, copy and push your code or read your tokens - read-only mounts
-don't stop that (the `.git` mount stops casual/accidental config tampering, not a
-determined copy-out). Defending against a malicious agent is a different posture
-(network egress allowlist, no mounted credentials) you've intentionally traded
-away for convenience.
-
-## Permissions, auto mode, and managed org policy
-
-By default the wrapper passes `--dangerously-skip-permissions` (set
-`CLAUDE_SANDBOX_AUTO=0` to drop it). **But if your org delivers managed Claude
-settings that set `disableBypassPermissionsMode`, that flag is a no-op** - you're
-always in the org's prompting mode regardless, and bypass simply isn't available
-(by design - don't try to strip it; take exceptions up with whoever owns the org
-policy).
-
-In that case the org policy governs: its `defaultMode` (e.g. `acceptEdits`, so
-file edits auto-accept), its `ask` list (Tigera's prompts for destructive things -
-`gh release delete`, `gh api -X DELETE`, force-push to protected branches,
-`kubectl delete namespace/node`, `drain`, `eksctl delete`), and its `deny` list
-(protecting security tooling). Those are sharper than anything this repo could set.
-
-So `settings/settings.json` here deliberately carries **only an `allow` list** for
-the dev tool families (`kubectl`, `gh`, `gcloud`, `az`) - that stops benign
-commands prompting on top of the org policy. `ask` beats `allow`, so the org's
-destructive-action prompts still fire over our allow. (Outside a managed org,
-where bypass works, you may want to re-add an `ask`/`deny` tier here.)
-
-## Kubeconfigs
-
-Your host CLI keeps its own `~/.kube/config` (never mounted). Claude gets a
-separate `~/.kube` backed by the gitignored `kube/` dir in this repo. Use it for
-kind clusters (full access) and the occasional monitored staging config - see
-`kube/README.md`.
-
-## GitHub CLI
-
-`gh` auth comes from one of two places. If `secrets/gh-token` exists, the wrapper
-passes it as `GH_TOKEN` (the **scoped fine-grained PAT** path - preferred). Else
-it mounts your full host `~/.config/gh` **read-only**, which works with your
-existing login but grants the sandbox your **full** gh token (act-as-you on every
-repo). Branch protection on `main` stops direct pushes/merges there, but not
-pushing to other branches, deleting releases/runs, or reading private repos. To
-narrow it, see [`docs/github-pat.md`](docs/github-pat.md) - and note several
-limits you might want (no-merge, no-force-push, no-delete) aren't token
-permissions at all; they're branch rulesets or simply unenforceable server-side.
-
-## Docker / kind
-
-`make` and the daemonless image build (`ko`) work as-is. For anything that calls
-`docker` or spins up `kind`, the image ships **podman** plus the `podman-docker`
-shim, so `docker build`/`docker run` transparently use podman (no daemon), and
-`kind` is pointed at podman via `KIND_EXPERIMENTAL_PROVIDER=podman`.
-
-Caveat: nested rootless containers are finicky. `--userns=keep-id` (which keeps
-file ownership clean) gives the container a single UID mapping, which limits what
-nested podman can map - simple `docker build`/`run` are fine, but full `kind`
-e2e may need tuning or is simplest to run on the host. Test the e2e path before
-relying on it. The `--cap-drop ALL` / `no-new-privileges` hardening was removed
-because it blocks rootless podman's setuid helpers; the filesystem and resource
-boundaries (what's mounted, the CPU/RAM caps) are unaffected.
-
-## Cluster testing
-
-The sandbox can't create kind clusters or `kind load` images - that needs
-host container-runtime access we deliberately withhold. So the current approach
-(call it option 2) provisions the cluster on the **host** and lets the sandbox
-deploy/test against it over the mounted kubeconfig + host networking:
-
-1. On the host, bring up the cluster and load images (matrix e2e example):
-   `make -C ~/github/tigera/matrix/e2e setup`
-2. Export its kubeconfig into this repo's `kube/` so the sandbox picks it up:
-   `kind get kubeconfig --name matrix-e2e > ~/tools/claude-setup/kube/config`
-3. In the sandbox, run tests against it - `kubectl`/`helm` reach the API on
-   `127.0.0.1` via host networking: `make -C e2e test`
-
-Limitation: the sandbox tests whatever images the host loaded. To deploy images
-the sandbox *itself* builds (e.g. to test Claude's own code changes end to end),
-you need a local-registry or tarball image path and a host helper for cluster
-lifecycle - that's the deferred work in
-[`docs/option-1-host-make-helper.md`](docs/option-1-host-make-helper.md). For
-now, rebuild + reload images on the host when the code under test changes.
-
-## Persistent caches
-
-Named volumes keep module downloads across sessions and share them between
-parallel containers (no re-downloading per launch):
-
-`claude-go` (`~/go` + build cache), `claude-cache` (`~/.cache`: go-build, pip,
-yarn), `claude-pnpm` (pnpm store), `claude-npm` (`~/.npm`). Inspect with
-`podman volume ls`; reset one with `podman volume rm claude-<name>`.
-
-## Parallel sessions
-
-Open another terminal and run `claude-sandbox` in a different worktree - each is
-its own container with its own resource caps. Pairs naturally with `git worktree`.
+Go, Node + corepack (pnpm/yarn), Python, make/build-essential, gh, kubectl, helm,
+gcloud, az, podman (+ a `docker` shim), Claude Code. amd64 - for arm64, swap the
+Go/kubectl download arch in `Containerfile`.
 
 ## Knobs (env vars)
 
 | Var | Default | Effect |
 |-----|---------|--------|
-| `CLAUDE_SANDBOX_AUTO` | `1` | `0` drops `--dangerously-skip-permissions` (oversight mode) |
+| `CLAUDE_SANDBOX_AUTO` | `1` | `0` drops `--dangerously-skip-permissions` (a no-op if your org disables bypass - see docs) |
 | `CLAUDE_SANDBOX_MEMORY` | `8g` | Per-session memory cap |
 | `CLAUDE_SANDBOX_CPUS` | `4` | Per-session CPU cap |
 | `CLAUDE_SANDBOX_PIDS` | `1024` | Per-session process cap |
 | `CLAUDE_SANDBOX_ROOT` | `~/github` | Mounted tree + allowed launch root |
 | `CLAUDE_SANDBOX_IMAGE` | `claude-sandbox:latest` | Image tag |
 
+## Docs
+
+- [Permissions & managed org policy](docs/permissions.md) - auto mode, why bypass may be a no-op, the allow-list approach.
+- [Your `~/.claude` (shared)](docs/claude-home.md) - what's shared vs read-only, the `settings.json` override, the risk scope.
+- [Clusters: kubeconfig, kind, docker](docs/clusters.md) - host-provisioned cluster + the in-sandbox test loop.
+- [Scoping `gh` with a fine-grained PAT](docs/github-pat.md) - HTTPS vs SSH, permission mapping, what tokens can't enforce.
+- [Autonomous clusters via a host helper](docs/option-1-host-make-helper.md) - deferred design.
+
 ## Notes
 
-- Keep this repo **outside** `~/github` (the mounted tree). It defines the sandbox
-  boundary and the wrapper runs on the host, so it must not be writable from inside
-  a sandbox session - otherwise a session could weaken its own next launch.
-- Uses host networking: Claude has full network access and kind clusters /
-  local dev servers on the host are reachable. Only the network namespace is
-  shared - the filesystem and resource boundaries are unaffected.
-- The container sets `CLAUDE_SANDBOX=1` so you, Claude, or a Makefile can detect
-  the sandboxed environment (e.g. `[ -n "$CLAUDE_SANDBOX" ]`).
-- Image is amd64. On arm64, swap the Go/kubectl download arch in `Containerfile`.
-- Don't enable Claude's built-in bash sandbox on top of this - the container is
-  already the boundary, and its filesystem glob rules are only partially
-  supported on Linux.
+- Keep this repo **outside** `~/github`: it defines the boundary and the wrapper
+  runs on the host, so it mustn't be writable from inside a session.
+- **Host networking** - full network access; host kind clusters and dev servers
+  are reachable. Only the network namespace is shared.
+- The container sets `CLAUDE_SANDBOX=1` so you, Claude, or a Makefile can detect it.
+- Build caches persist in named volumes (`claude-go`, `claude-cache`,
+  `claude-pnpm`, `claude-npm`); list with `podman volume ls`, reset with
+  `podman volume rm claude-<name>`.
