@@ -67,12 +67,18 @@ with `[ -x ]` and no-op when the binary isn't present).
 Scope of risk: your **host** Claude already has full read-write to `~/.claude`, so
 the sandbox isn't a new risk class - it just gets the same access, to share the
 store. Its real job (protecting the rest of your home, capping resources) is
-unchanged. As extra insurance, your irreplaceable customizations and the
-`~/.claude` git repo - `CLAUDE.md`, `commands/`, `hooks/`, `.git/` - are mounted
-**read-only**, so a stray write inside the sandbox can't touch them even if your
-dotfiles worktree is dirty. Sessions, memory and runtime state stay writable
-(that's the shared store). Settings/model changes made inside the sandbox won't
-persist (settings.json is read-only there) - edit `settings/settings.json` here.
+unchanged. Your customizations (`CLAUDE.md`, `commands/`, `hooks/`) are mounted
+**read-only** as inputs, which guards against an accidental clobber. Sessions,
+memory and runtime state stay writable (that's the shared store). Settings/model
+changes made inside the sandbox won't persist (settings.json is read-only there) -
+edit `settings/settings.json` here.
+
+This is an **accident + resource boundary, not an anti-exfiltration one.** A
+container in auto mode with full network and readable credentials could, if it
+went truly rogue, copy and push your code or read your tokens - read-only mounts
+don't stop that. Defending against a malicious agent is a different posture
+(network egress allowlist, no mounted credentials) you've intentionally traded
+away for convenience.
 
 ## Auto mode vs oversight mode
 

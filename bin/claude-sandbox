@@ -65,11 +65,11 @@ fi
 # ways and you don't log in twice.
 mounts+=(-v "$HOME/.claude:$HOME/.claude:rw")
 
-# protect the irreplaceable bits from a stray write inside the sandbox: your
-# customizations and the ~/.claude git repo are mounted read-only, so they
-# survive even if your dotfiles worktree is dirty (sessions, memory and runtime
-# state stay writable - that's the shared store).
-for ro in CLAUDE.md commands hooks .git; do
+# mount your customizations read-only - they're inputs the container has no reason
+# to write, so this guards against an accidental clobber. NOT a defense against a
+# rogue agent: with full network and readable files it can still copy content out.
+# This sandbox is an accident + resource boundary, not an exfiltration one.
+for ro in CLAUDE.md commands hooks; do
   [ -e "$HOME/.claude/$ro" ] && mounts+=(-v "$HOME/.claude/$ro:$HOME/.claude/$ro:ro")
 done
 
