@@ -185,6 +185,8 @@ its own container with its own resource caps. Pairs naturally with `git worktree
 - Uses host networking: Claude has full network access and kind clusters /
   local dev servers on the host are reachable. Only the network namespace is
   shared - the filesystem and resource boundaries are unaffected.
+- The container sets `CLAUDE_SANDBOX=1` so you, Claude, or a Makefile can detect
+  the sandboxed environment (e.g. `[ -n "$CLAUDE_SANDBOX" ]`).
 - Image is amd64. On arm64, swap the Go/kubectl download arch in `Containerfile`.
 - Don't enable Claude's built-in bash sandbox on top of this - the container is
   already the boundary, and its filesystem glob rules are only partially

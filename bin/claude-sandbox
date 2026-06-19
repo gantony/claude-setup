@@ -101,6 +101,7 @@ echo "== claude-sandbox doctor =="
 echo
 echo "-- identity / keep-id --"
 echo "user $(id -un) uid=$(id -u) gid=$(id -g)  HOME=$HOME  PWD=$PWD"
+echo "CLAUDE_SANDBOX=${CLAUDE_SANDBOX:-<unset>}"
 t="$PWD/.cs-doctor.$$"
 if touch "$t" 2>/dev/null; then
   o=$(stat -c '%u' "$t"); rm -f "$t"
@@ -166,6 +167,7 @@ exec podman run --rm -it \
   -w "$WORKDIR" \
   -e HOME="$HOME" \
   -e TERM="${TERM:-xterm-256color}" \
+  -e CLAUDE_SANDBOX=1 \
   -v claude-cache:"$HOME/.cache" \
   -v claude-go:"$HOME/go" \
   -v claude-pnpm:"$HOME/.local/share/pnpm" \
