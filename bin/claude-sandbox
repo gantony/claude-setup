@@ -32,6 +32,8 @@ if [ "${1:-}" = "build" ]; then
     --build-arg HOST_UID="$(id -u)" \
     --build-arg HOST_GID="$(id -g)" \
     --build-arg HOST_HOME="$HOME" \
+    --build-arg GIT_USER_NAME="$(git config --global user.name)" \
+    --build-arg GIT_USER_EMAIL="$(git config --global user.email)" \
     -t "$IMAGE" \
     -f "$REPO_DIR/Containerfile" \
     "$REPO_DIR"

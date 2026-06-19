@@ -12,6 +12,11 @@ ARG HOST_UID=1000
 ARG HOST_GID=1000
 ARG HOST_HOME=/home/antony
 
+# git identity for in-sandbox commits - the wrapper fills these from your host
+# `git config --global user.name/user.email` at build time (empty = not set).
+ARG GIT_USER_NAME=""
+ARG GIT_USER_EMAIL=""
+
 # Tool versions - bump to match your projects.
 ARG GO_VERSION=1.23.4
 ARG NODE_MAJOR=20
@@ -89,7 +94,9 @@ RUN npm install -g @anthropic-ai/claude-code
 # supply the token at runtime. The host's own remotes and git config are untouched.
 RUN git config --system url."https://github.com/".insteadOf "git@github.com:" \
     && git config --system --add url."https://github.com/".insteadOf "ssh://git@github.com/" \
-    && git config --system credential."https://github.com".helper "!gh auth git-credential"
+    && git config --system credential."https://github.com".helper "!gh auth git-credential" \
+    && if [ -n "${GIT_USER_NAME}" ]; then git config --system user.name "${GIT_USER_NAME}"; fi \
+    && if [ -n "${GIT_USER_EMAIL}" ]; then git config --system user.email "${GIT_USER_EMAIL}"; fi
 
 # --- match the host user so keep-id maps cleanly ---
 # Ubuntu 24.04 ships a default uid/gid 1000 ("ubuntu"); drop it before creating
