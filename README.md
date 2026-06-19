@@ -116,6 +116,16 @@ separate `~/.kube` backed by the gitignored `kube/` dir in this repo. Use it for
 kind clusters (full access) and the occasional monitored staging config - see
 `kube/README.md`.
 
+## GitHub CLI
+
+Your `~/.config/gh` is mounted **read-only**, so `gh` works inside the sandbox
+with your existing host login - no re-login, and the sandbox can't change your gh
+auth. Note this grants the sandbox your **full** gh token (act-as-you on every
+repo you can access). Branch protection on `main` stops direct pushes there, but
+not pushing to other branches, opening/merging PRs, or reading private repos. For
+least privilege, drop the mount and pass a fine-grained PAT via `GH_TOKEN` scoped
+to just what Claude needs.
+
 ## Docker / kind
 
 `make` and the daemonless image build (`ko`) work as-is. For anything that calls

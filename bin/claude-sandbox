@@ -64,6 +64,14 @@ if [ -d "$REPO_DIR/kube" ]; then
   mounts+=(-v "$REPO_DIR/kube:$HOME/.kube:rw")
 fi
 
+# share your gh CLI auth read-only so `gh` works with your existing host login
+# (no re-login; the sandbox can't change your gh auth). This grants your FULL gh
+# token - for least privilege, drop this and pass a scoped fine-grained PAT via
+# GH_TOKEN instead.
+if [ -d "$HOME/.config/gh" ]; then
+  mounts+=(-v "$HOME/.config/gh:$HOME/.config/gh:ro")
+fi
+
 # share your real ~/.claude read-write so sessions, history, memory, auth,
 # commands, hooks and plugins are one store with the host - resume works both
 # ways and you don't log in twice.
@@ -139,6 +147,9 @@ for c in go node pnpm yarn python3 make gh kubectl helm gcloud az podman docker 
   if command -v "$c" >/dev/null 2>&1; then printf 'PASS %-8s %s\n' "$c" "$(command -v "$c")"
   else printf 'MISS %-8s\n' "$c"; fi
 done
+echo
+echo "-- github cli --"
+if [ -f "$HOME/.config/gh/hosts.yml" ]; then echo "PASS gh config present (uses your host login)"; else echo "WARN gh not authenticated (mount ~/.config/gh or gh auth login)"; fi
 echo
 echo "-- container runtime (docker/kind) --"
 if podman info >/dev/null 2>&1; then echo "PASS nested podman ok"; else echo "WARN nested podman failed (docker/kind may not work)"; fi
