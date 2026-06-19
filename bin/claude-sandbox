@@ -60,19 +60,17 @@ if [ -d "$REPO_DIR/kube" ]; then
   mounts+=(-v "$REPO_DIR/kube:$HOME/.kube:rw")
 fi
 
-# your real customizations from ~/.claude, mounted read-only: the sandbox uses
-# your CLAUDE.md, custom commands, hooks and plugins but can't modify them, while
-# auth, history and project memory stay isolated in the claude-config volume.
-for item in CLAUDE.md commands hooks plugins; do
-  [ -e "$HOME/.claude/$item" ] && mounts+=(-v "$HOME/.claude/$item:$HOME/.claude/$item:ro")
-done
+# share your real ~/.claude read-write so sessions, history, memory, auth,
+# commands, hooks and plugins are one store with the host - resume works both
+# ways and you don't log in twice.
+mounts+=(-v "$HOME/.claude:$HOME/.claude:rw")
 
-# sandbox-specific Claude settings (managed = authoritative). Derived from your
-# host settings.json minus the bits that don't belong in the container (the
-# built-in bash sandbox, claude-guard). Permission tiers here apply in oversight
-# mode (AUTO=0).
+# ...except settings.json, overridden with the curated read-only version: the
+# host's enables the built-in bash sandbox and the claude-guard hook, both of
+# which break or are redundant in the container. This is the one piece the
+# sandbox can't modify; its permission tiers apply in oversight mode (AUTO=0).
 if [ -f "$REPO_DIR/settings/settings.json" ]; then
-  mounts+=(-v "$REPO_DIR/settings/settings.json:/etc/claude-code/managed-settings.json:ro")
+  mounts+=(-v "$REPO_DIR/settings/settings.json:$HOME/.claude/settings.json:ro")
 fi
 
 claude_args=()
@@ -88,7 +86,6 @@ exec podman run --rm -it \
   -w "$WORKDIR" \
   -e HOME="$HOME" \
   -e TERM="${TERM:-xterm-256color}" \
-  -v claude-config:"$HOME/.claude" \
   -v claude-cache:"$HOME/.cache" \
   -v claude-go:"$HOME/go" \
   -v claude-pnpm:"$HOME/.local/share/pnpm" \

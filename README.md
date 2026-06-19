@@ -15,7 +15,7 @@ Because the boundary is structural, Claude runs in auto mode
 |------|------|
 | `Containerfile` | Dev image: Go, Node + corepack (pnpm/yarn), Python, make/build-essential, gh, kubectl, gcloud, az, podman (+ `docker` shim), Claude Code |
 | `bin/claude-sandbox` | Launch wrapper - build the image, then run Claude in any `~/github` dir |
-| `settings/settings.json` | Curated container Claude settings (managed), derived from your host `settings.json` |
+| `settings/settings.json` | Curated container settings, mounted read-only over `~/.claude/settings.json` |
 | `kube/` | Gitignored kubeconfigs for Claude; mounted as the container's `~/.kube` (see `kube/README.md`) |
 
 ## Prerequisites
@@ -46,27 +46,29 @@ claude-sandbox                  # auto mode, scoped to this dir
 claude-sandbox --resume         # extra args pass through to `claude`
 ```
 
-First run: authenticate with `/login` inside Claude. Auth + history persist in
-the `claude-config` volume, so you only do it once. (Alternatively set
-`CLAUDE_CODE_OAUTH_TOKEN` in your environment.)
+Auth is shared with your host `~/.claude`, so you're already logged in - no
+separate `/login` needed.
 
-## Your customizations (`~/.claude`)
+## Your `~/.claude` (shared with the host)
 
-Your real `~/.claude/{CLAUDE.md,commands,hooks,plugins}` are mounted **read-only**,
-so the sandbox uses your global instructions, custom commands (review-pr, open-pr,
-respond-to-review, ...), hooks and installed plugins - but can't modify them.
-Everything writable and sensitive (auth, `history.jsonl`, `projects/` transcripts
-and memory) stays isolated in the `claude-config` volume, so the sandbox keeps its
-own state and you log in once inside it.
+Your real `~/.claude` is mounted **read-write**, so the sandbox shares one store
+with the host: sessions, `history.jsonl`, `projects/` (transcripts + memory),
+auth, custom commands (review-pr, open-pr, ...), hooks and plugins are all the
+same. So you can resume a host session inside the sandbox and vice versa, memory
+is shared, and you don't log in twice.
 
-Settings are **not** mounted from the host - the container uses the curated
-`settings/settings.json` (managed settings) derived from yours, minus the host-only
-bits that would break or be redundant inside the container (the built-in bash
-sandbox, the claude-guard `PermissionRequest` hook). Edit it to taste.
+The one exception is `settings.json`: the container mounts the curated
+`settings/settings.json` **read-only** over it, because your host settings enable
+the built-in bash sandbox and the claude-guard hook - both of which break or are
+redundant inside the container. Your other settings tiers still apply
+(`settings.local.json`, and remote settings - whose panther hooks are guarded
+with `[ -x ]` and no-op when the binary isn't present).
 
-If a plugin needs to write its cache at runtime and the read-only mount trips it
-up, flip just `plugins` to `rw` in `bin/claude-sandbox` (recoverable - your
-`~/.claude` is git-versioned).
+Trade-off: the sandbox can now read your credentials and write/delete within
+`~/.claude` (so `rm -rf ~/.claude` becomes possible again - but it's git-versioned
+and recoverable, and the rest of your home is still unreachable). Settings/model
+changes made inside the sandbox won't persist (settings.json is read-only there) -
+edit `settings/settings.json` in this repo instead.
 
 ## Auto mode vs oversight mode
 
@@ -104,9 +106,8 @@ Named volumes keep module downloads across sessions and share them between
 parallel containers (no re-downloading per launch):
 
 `claude-go` (`~/go` + build cache), `claude-cache` (`~/.cache`: go-build, pip,
-yarn), `claude-pnpm` (pnpm store), `claude-npm` (`~/.npm`), `claude-config`
-(`~/.claude`: auth, history). Inspect with `podman volume ls`; reset one with
-`podman volume rm claude-<name>`.
+yarn), `claude-pnpm` (pnpm store), `claude-npm` (`~/.npm`). Inspect with
+`podman volume ls`; reset one with `podman volume rm claude-<name>`.
 
 ## Parallel sessions
 
