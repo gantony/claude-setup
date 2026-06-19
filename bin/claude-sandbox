@@ -5,9 +5,9 @@
 #   claude-sandbox [args...]  run Claude Code in the current dir, args passed through
 #
 # The current directory must live under $CLAUDE_SANDBOX_ROOT (default ~/github).
-# Only that dir (or all of ~/github with CLAUDE_SANDBOX_MOUNT_ALL=1) plus the
-# repo's kube/ dir are mounted, so nothing else in your home partition is
-# reachable from the container.
+# All of ~/github (so a session can span multiple repos) plus the repo's kube/
+# dir are mounted, so nothing else in your home partition is reachable from the
+# container.
 set -euo pipefail
 
 IMAGE="${CLAUDE_SANDBOX_IMAGE:-claude-sandbox:latest}"
@@ -46,12 +46,9 @@ esac
 
 mounts=()
 
-# project: just the current worktree by default, or all of ~/github if asked.
-if [ "${CLAUDE_SANDBOX_MOUNT_ALL:-0}" = "1" ]; then
-  mounts+=(-v "$GITHUB_ROOT:$GITHUB_ROOT:rw")
-else
-  mounts+=(-v "$WORKDIR:$WORKDIR:rw")
-fi
+# mount all of ~/github read-write so a session can span multiple repos; it still
+# starts in your current dir (set with -w below).
+mounts+=(-v "$GITHUB_ROOT:$GITHUB_ROOT:rw")
 
 # kubeconfigs: the repo's gitignored kube/ dir becomes the container's ~/.kube,
 # kept entirely separate from your host ~/.kube (your normal CLI is untouched).

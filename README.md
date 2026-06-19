@@ -1,10 +1,10 @@
 # claude-setup
 
 Run Claude Code inside a rootless [Podman](https://podman.io/) container so the
-**container is the structural boundary**: only the directory you launch from
-(under `~/github`) plus this repo's `kube/` dir are mounted, so the rest of your
-home partition is physically unreachable - `rm -rf ~` inside the sandbox hits
-nothing. Per-session CPU/RAM caps come from the same mechanism.
+**container is the structural boundary**: all of `~/github` (so a session can span
+multiple repos) plus this repo's `kube/` dir are mounted, so the rest of your home
+partition is physically unreachable - `rm -rf ~` inside the sandbox hits nothing.
+Per-session CPU/RAM caps come from the same mechanism.
 
 Because the boundary is structural, Claude runs in auto mode
 (`--dangerously-skip-permissions`) by default.
@@ -30,8 +30,8 @@ Because the boundary is structural, Claude runs in auto mode
 ## Setup
 
 ```
-git clone <this-repo> ~/github/claude-setup
-ln -s ~/github/claude-setup/bin/claude-sandbox ~/.local/bin/claude-sandbox
+git clone <this-repo> ~/tools/claude-setup        # keep it OUT of ~/github (the mounted tree)
+ln -s ~/tools/claude-setup/bin/claude-sandbox ~/.local/bin/claude-sandbox
 claude-sandbox build                              # one-time (rebuild after editing the Containerfile)
 ```
 
@@ -42,7 +42,7 @@ files Claude creates in mounted repos stay owned by you on the host.
 
 ```
 cd ~/github/some-project        # any dir under ~/github
-claude-sandbox                  # auto mode, scoped to this dir
+claude-sandbox                  # auto mode; starts here, all of ~/github mounted
 claude-sandbox --resume         # extra args pass through to `claude`
 ```
 
@@ -135,12 +135,14 @@ its own container with its own resource caps. Pairs naturally with `git worktree
 | `CLAUDE_SANDBOX_MEMORY` | `8g` | Per-session memory cap |
 | `CLAUDE_SANDBOX_CPUS` | `4` | Per-session CPU cap |
 | `CLAUDE_SANDBOX_PIDS` | `1024` | Per-session process cap |
-| `CLAUDE_SANDBOX_ROOT` | `~/github` | Allowed launch root |
-| `CLAUDE_SANDBOX_MOUNT_ALL` | `0` | `1` mounts all of `~/github` instead of just the cwd |
+| `CLAUDE_SANDBOX_ROOT` | `~/github` | Mounted tree + allowed launch root |
 | `CLAUDE_SANDBOX_IMAGE` | `claude-sandbox:latest` | Image tag |
 
 ## Notes
 
+- Keep this repo **outside** `~/github` (the mounted tree). It defines the sandbox
+  boundary and the wrapper runs on the host, so it must not be writable from inside
+  a sandbox session - otherwise a session could weaken its own next launch.
 - Uses host networking: Claude has full network access and kind clusters /
   local dev servers on the host are reachable. Only the network namespace is
   shared - the filesystem and resource boundaries are unaffected.
