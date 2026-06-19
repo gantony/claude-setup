@@ -49,6 +49,20 @@ claude-sandbox --resume         # extra args pass through to `claude`
 Auth is shared with your host `~/.claude`, so you're already logged in - no
 separate `/login` needed.
 
+## Doctor
+
+`claude-sandbox doctor` runs the same container setup (mounts, caps, userns) but
+executes a diagnostic instead of Claude, then exits. It reports:
+
+- identity / keep-id (new files in the repo owned by you, not a stray uid)
+- the `~/.claude` mounts: `settings.json` read-only with no bash-sandbox block,
+  `CLAUDE.md`/`commands`/`hooks`/`.git` read-only, `projects/` writable
+- the toolchain (go, node, pnpm, ..., podman, docker shim, claude)
+- nested podman (the docker/kind path)
+- the resolved cgroup memory/cpu/pids caps
+
+Run it from any dir under `~/github` after a build or a config change.
+
 ## Your `~/.claude` (shared with the host)
 
 Your real `~/.claude` is mounted **read-write**, so the sandbox shares one store

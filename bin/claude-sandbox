@@ -2,6 +2,7 @@
 # claude-sandbox - run Claude Code inside a rootless Podman container.
 #
 #   claude-sandbox build      build (or rebuild) the image for your user
+#   claude-sandbox doctor     run environment diagnostics in the container
 #   claude-sandbox [args...]  run Claude Code in the current dir, args passed through
 #
 # The current directory must live under $CLAUDE_SANDBOX_ROOT (default ~/github).
@@ -35,6 +36,10 @@ if [ "${1:-}" = "build" ]; then
     -f "$REPO_DIR/Containerfile" \
     "$REPO_DIR"
 fi
+
+# doctor mode runs diagnostics instead of claude, reusing the run setup below
+DOCTOR=0
+if [ "${1:-}" = "doctor" ]; then DOCTOR=1; shift; fi
 
 # --- run mode ---
 WORKDIR="$PWD"
@@ -81,9 +86,67 @@ if [ -f "$REPO_DIR/settings/settings.json" ]; then
   mounts+=(-v "$REPO_DIR/settings/settings.json:$HOME/.claude/settings.json:ro")
 fi
 
-claude_args=()
-if [ "$AUTO" = "1" ]; then
-  claude_args+=(--dangerously-skip-permissions)
+# choose what runs in the container: diagnostics or claude itself
+if [ "$DOCTOR" = "1" ]; then
+  DOCTOR_SCRIPT=$(cat <<'DOCTOR_EOF'
+echo "== claude-sandbox doctor =="
+echo
+echo "-- identity / keep-id --"
+echo "user $(id -un) uid=$(id -u) gid=$(id -g)  HOME=$HOME  PWD=$PWD"
+t="$PWD/.cs-doctor.$$"
+if touch "$t" 2>/dev/null; then
+  o=$(stat -c '%u' "$t"); rm -f "$t"
+  if [ "$o" = "$(id -u)" ]; then echo "PASS workdir writable, new files owned by uid $o"
+  else echo "WARN workdir writable but files owned by uid $o (expected $(id -u))"; fi
+else
+  echo "FAIL workdir $PWD not writable"
+fi
+echo
+echo "-- ~/.claude --"
+s="$HOME/.claude/settings.json"
+if [ -f "$s" ]; then
+  if grep -q '"sandbox"' "$s"; then echo "WARN settings.json has a sandbox block (built-in bash sandbox may be ON)"
+  else echo "PASS settings.json has no sandbox block (built-in bash sandbox off)"; fi
+  if touch "$s" 2>/dev/null; then echo "WARN settings.json is writable (expected read-only)"
+  else echo "PASS settings.json read-only"; fi
+else
+  echo "FAIL $s missing"
+fi
+for d in CLAUDE.md commands hooks .git; do
+  p="$HOME/.claude/$d"; [ -e "$p" ] || { echo "warn $d not present"; continue; }
+  if touch "$p/.cs-doctor" 2>/dev/null || { [ -f "$p" ] && touch "$p" 2>/dev/null; }; then
+    rm -f "$p/.cs-doctor" 2>/dev/null; echo "WARN $d writable (expected read-only)"
+  else echo "PASS $d read-only"; fi
+done
+p="$HOME/.claude/projects"
+if [ -d "$p" ]; then
+  if touch "$p/.cs-doctor" 2>/dev/null; then rm -f "$p/.cs-doctor"; echo "PASS projects writable (shared session store)"
+  else echo "WARN projects not writable (resume sharing broken)"; fi
+fi
+echo
+echo "-- toolchain --"
+for c in go node pnpm yarn python3 make gh kubectl gcloud az podman docker claude; do
+  if command -v "$c" >/dev/null 2>&1; then printf 'PASS %-8s %s\n' "$c" "$(command -v "$c")"
+  else printf 'MISS %-8s\n' "$c"; fi
+done
+echo
+echo "-- container runtime (docker/kind) --"
+if podman info >/dev/null 2>&1; then echo "PASS nested podman ok"; else echo "WARN nested podman failed (docker/kind may not work)"; fi
+if command -v docker >/dev/null 2>&1; then echo "docker -> $(readlink -f "$(command -v docker)")"; fi
+echo
+echo "-- resource caps (cgroup v2) --"
+for f in memory.max pids.max cpu.max; do
+  printf '%-11s %s\n' "$f" "$(cat /sys/fs/cgroup/$f 2>/dev/null || echo '?')"
+done
+echo
+echo done
+DOCTOR_EOF
+)
+  container_cmd=(bash -c "$DOCTOR_SCRIPT")
+else
+  container_cmd=(claude)
+  if [ "$AUTO" = "1" ]; then container_cmd+=(--dangerously-skip-permissions); fi
+  container_cmd+=("$@")
 fi
 
 exec podman run --rm -it \
@@ -100,4 +163,4 @@ exec podman run --rm -it \
   -v claude-npm:"$HOME/.npm" \
   "${mounts[@]}" \
   "$IMAGE" \
-  claude "${claude_args[@]}" "$@"
+  "${container_cmd[@]}"
