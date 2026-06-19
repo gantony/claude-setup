@@ -26,7 +26,7 @@ token. Set:
 | Contents | Read and write | Commit + push (also enables merge + release create/edit/**delete** - unavoidable) |
 | Pull requests | Read and write | Open / update PRs |
 | Actions | Read and write | CI: view + re-run + cancel + dispatch (also enables **delete run** - unavoidable). Use **Read** for view-only |
-| Workflows | *omit* | Leaving it off blocks pushes that touch `.github/workflows/*` - Claude can drive CI but not rewrite it |
+| Workflows | *omit* | Blocks pushes touching `.github/workflows/*` (rejected on any branch, so it can't sneak in via a PR either). Guards workflow *definitions* only - NOT the code CI runs; see below |
 | Administration | *omit* | No repo-settings/branch-protection changes |
 
 ## What the token CAN'T enforce (and what does instead)
@@ -52,6 +52,14 @@ items are **not** token-expressible:
 - **"Re-run CI but not delete a workflow run"** - same permission
   (Actions: write), no ruleset. View-only (Actions: Read) is the only separable
   point.
+- **"Omitting Workflows protects CI"** - only partly. It blocks pushing changes
+  to `.github/workflows/*` (the push is rejected on any branch, so it can't reach
+  a PR either - the permission gates the push, not the merge). But it does NOT
+  stop changes to the *code* CI runs (`Makefile`, `hack/*.sh`, tests) - those push
+  fine under Contents: write and execute in CI on same-repo PRs (which have
+  secrets, on PR open - no merge needed) and on base after merge. Defending that
+  is PR review + scoping CI secrets behind Environments with required reviewers,
+  not the token.
 
 So for delete-release / delete-run there's no structural control: either accept
 it (and do those destructive ops on the host), drop the relevant write
