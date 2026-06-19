@@ -91,7 +91,16 @@ RUN userdel -r ubuntu 2>/dev/null || true; \
     useradd -m -u "${HOST_UID}" -g "${HOST_GID}" -d "${HOST_HOME}" -s /bin/bash "${HOST_USER}" 2>/dev/null || true; \
     mkdir -p "${HOST_HOME}" && chown "${HOST_UID}:${HOST_GID}" "${HOST_HOME}"; \
     echo "${HOST_USER}:100000:65536" > /etc/subuid; \
-    echo "${HOST_USER}:100000:65536" > /etc/subgid
+    echo "${HOST_USER}:100000:65536" > /etc/subgid; \
+    mkdir -p "${HOST_HOME}/.local/bin"; \
+    ln -sf "$(command -v claude)" "${HOST_HOME}/.local/bin/claude"; \
+    chown -R "${HOST_UID}:${HOST_GID}" "${HOST_HOME}/.local"
+
+# Claude Code's startup integrity check looks for the native-installer binary at
+# ~/.local/bin/claude. We install via npm (at /usr/bin/claude), and the shared
+# host ~/.claude.json records a native install - so without the symlink above
+# Claude warns "claude command at ~/.local/bin/claude missing or broken" on every
+# launch. The symlink points that path at the working npm binary.
 
 # Cache locations point at dirs that bin/claude-sandbox mounts as persistent
 # volumes, so module downloads survive across sessions and are shared between
