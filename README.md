@@ -52,7 +52,7 @@ Go/kubectl download arch in `Containerfile`.
 
 | Var | Default | Effect |
 |-----|---------|--------|
-| `CLAUDE_SANDBOX_AUTO` | `1` | `0` drops `--dangerously-skip-permissions` (a no-op if your org disables bypass - see docs) |
+| `CLAUDE_SANDBOX_PERMISSION_MODE` | `auto` | `--permission-mode` at launch. Empty = oversight (settings/policy decide); also `acceptEdits`, `plan`, `default`, `bypassPermissions` - see docs |
 | `CLAUDE_SANDBOX_MEMORY` | `8g` | Per-session memory cap |
 | `CLAUDE_SANDBOX_CPUS` | `4` | Per-session CPU cap |
 | `CLAUDE_SANDBOX_PIDS` | `1024` | Per-session process cap |

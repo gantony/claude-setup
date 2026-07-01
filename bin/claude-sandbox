@@ -16,9 +16,13 @@ MEMORY="${CLAUDE_SANDBOX_MEMORY:-8g}"
 CPUS="${CLAUDE_SANDBOX_CPUS:-4}"
 PIDS="${CLAUDE_SANDBOX_PIDS:-1024}"
 GITHUB_ROOT="${CLAUDE_SANDBOX_ROOT:-$HOME/github}"
-# auto mode (skip permission prompts). Set CLAUDE_SANDBOX_AUTO=0 for oversight
-# mode - prompts apply and settings/settings.json tiers take effect.
-AUTO="${CLAUDE_SANDBOX_AUTO:-1}"
+# permission mode Claude starts in, passed as --permission-mode. Default "auto":
+# the classifier-backed auto mode, which reduces prompts but - unlike bypass -
+# keeps working under a managed org policy that blocks --dangerously-skip-
+# permissions. Other values: acceptEdits, plan, default, bypassPermissions. Set
+# empty for oversight mode - the flag is omitted and settings / managed policy
+# (its defaultMode, ask and deny tiers) decide.
+PERMISSION_MODE="${CLAUDE_SANDBOX_PERMISSION_MODE:-auto}"
 
 # resolve symlinks so this works when invoked via a symlink in PATH
 # (e.g. ~/.local/bin/claude-sandbox -> ~/tools/claude-setup/bin/claude-sandbox).
@@ -171,7 +175,7 @@ DOCTOR_EOF
   container_cmd=(bash -c "$DOCTOR_SCRIPT")
 else
   container_cmd=(claude)
-  if [ "$AUTO" = "1" ]; then container_cmd+=(--dangerously-skip-permissions); fi
+  if [ -n "$PERMISSION_MODE" ]; then container_cmd+=(--permission-mode "$PERMISSION_MODE"); fi
   container_cmd+=("$@")
 fi
 

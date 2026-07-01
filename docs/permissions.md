@@ -1,13 +1,19 @@
 # Permissions, auto mode, and managed org policy
 
-By default the wrapper passes `--dangerously-skip-permissions` (set
-`CLAUDE_SANDBOX_AUTO=0` to drop it). **But if your org delivers managed Claude
-settings that set `disableBypassPermissionsMode`, that flag is a no-op** - you're
-always in the org's prompting mode regardless, and bypass simply isn't available
-(by design - don't try to strip it; take exceptions up with whoever owns the org
-policy).
+By default the wrapper launches Claude with `--permission-mode auto`
+(`CLAUDE_SANDBOX_PERMISSION_MODE=auto`). Auto mode is the classifier-backed mode:
+it keeps prompts low for routine work but, unlike bypass, a safety classifier
+still vets each action - so it keeps working under a managed org policy. Set
+`CLAUDE_SANDBOX_PERMISSION_MODE=` (empty) for oversight mode (the flag is omitted
+and settings / managed policy decide), or to `acceptEdits`, `plan`, `default`,
+or `bypassPermissions` for a specific mode.
 
-In that case the org policy governs:
+We default to auto rather than `bypassPermissions` deliberately: **if your org
+delivers managed Claude settings that set `disableBypassPermissionsMode`, bypass
+is a no-op** - it's unavailable by design (don't try to strip it; take exceptions
+up with whoever owns the org policy). Auto mode sidesteps that entirely.
+
+Whatever launch mode you pick, the org policy still governs:
 
 - its `defaultMode` (e.g. `acceptEdits`, so file edits auto-accept),
 - its `ask` list (e.g. Tigera prompts for destructive things - `gh release
